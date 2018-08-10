@@ -43,22 +43,52 @@ func main() {
 	}
 }
 
+type Strategy struct {
+	Name         string
+	Duration     time.Duration
+	Index        []string
+	ThresholdPct float64
+	StartCash    float64
+	Increment    float64
+}
+
+var strategies = []Strategy{
+	{
+		Name:         "5yr, russell2k, 5% thresh, 1k increment, 20k start",
+		Duration:     time.Duration(time.Hour * 24 * 365 * 5),
+		Index:        russell2k,
+		ThresholdPct: 0.05,
+		StartCash:    20000,
+		Increment:    1000,
+	},
+	{
+		Name:         "5yr, russell2k, 5% thresh, 2.5k increment, 20k start",
+		Duration:     time.Duration(time.Hour * 24 * 365 * 5),
+		Index:        russell2k,
+		ThresholdPct: 0.05,
+		StartCash:    20000,
+		Increment:    2500,
+	},
+	{
+		Name:         "5yr, russell2k, 5% thresh, 5k increment, 20k start",
+		Duration:     time.Duration(time.Hour * 24 * 365 * 5),
+		Index:        russell2k,
+		ThresholdPct: 0.05,
+		StartCash:    20000,
+		Increment:    5000,
+	},
+}
+
 func simulate(c *cli.Context) error {
 	fmt.Println("simulating strategies:")
-	fiveYears := time.Duration(time.Hour * 24 * 365 * 2)
-	fiveYearsAgo := time.Now().Add(-1 * fiveYears)
-	fmt.Println("2 years, russell2k, 5% threshold, $1,000 increments, $20,000 start")
-	simulateStrat(russell2k, 0.05, 1000, 20000, fiveYearsAgo)
-	fmt.Println("2 years, s&p500, 5% threshold, $1,000 increments, $20,000 start")
-	simulateStrat(sp500, 0.05, 1000, 20000, fiveYearsAgo)
-	fmt.Println("2 years, russell2k, 10% threshold, $1,000 increments, $20,000 start")
-	simulateStrat(russell2k, 0.1, 1000, 20000, fiveYearsAgo)
-	fmt.Println("2 years, s&p500, 10% threshold, $1,000 increments, $20,000 start")
-	simulateStrat(sp500, 0.1, 1000, 20000, fiveYearsAgo)
+	for _, s := range strategies {
+		total := simulateStrat(s.Index, s.ThresholdPct, s.Increment, s.StartCash, time.Now().Add(-1*s.Duration))
+		fmt.Println("%s --> %f", s.Name, total)
+	}
 	return nil
 }
 
-func simulateStrat(index []string, percent, increment, startAmount float64, startDate time.Time) {
+func simulateStrat(index []string, percent, increment, startAmount float64, startDate time.Time) float64 {
 	day := time.Duration(time.Hour * 24)
 	amountHave := startAmount
 	portfolio := make(map[string]int)
@@ -81,8 +111,7 @@ func simulateStrat(index []string, percent, increment, startAmount float64, star
 			}
 		}
 	}
-	portfolioValue := calculateTotal(amountHave, portfolio)
-	fmt.Printf("ended with portfolioValue: %f\n,", portfolioValue)
+	return calculateTotal(amountHave, portfolio)
 }
 
 func calculateTotal(cash float64, portfolio map[string]int) float64 {
