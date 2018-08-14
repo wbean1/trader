@@ -1,12 +1,14 @@
 package main
 
 import (
+	"encoding/gob"
 	"fmt"
 	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
 	"regexp"
+	"runtime"
 	"time"
 
 	"github.com/piquette/finance-go/chart"
@@ -88,7 +90,7 @@ func simulate(c *cli.Context) error {
 	fmt.Println("simulating strategies:")
 	for _, s := range strategies {
 		total := simulateStrat(s.Index, s.ThresholdPct, s.Increment, s.StartCash, time.Now().Add(-1*s.Duration))
-		fmt.Println("%s --> %f", s.Name, total)
+		fmt.Printf("%s --> %f\n", s.Name, total)
 	}
 	return nil
 }
@@ -99,7 +101,7 @@ func simulateStrat(index []string, percent, increment, startAmount float64, star
 	portfolio := make(map[string]int)
 	for i := startDate; time.Now().Sub(i) > 0; i = i.Add(day) {
 		stocks := fetchEarnings(i, index)
-		for _, stock := range stocks {
+		for _, stock := range stocks.Stocks {
 			closePrice, change := quoteForDate(stock, i)
 			if change < (-1 * percent) { //buy low
 				if amountHave > increment {
@@ -129,7 +131,32 @@ func calculateTotal(cash float64, portfolio map[string]int) float64 {
 	return cash
 }
 
+type Quotes struct {
+	Ticker      string
+	ClosePrices map[time.Time]float64
+	Changes     map[time.Time]float64
+}
+
 func quoteForDate(ticker string, date time.Time) (closePrice float64, change float64) {
+	file := fmt.Sprintf("quotes/%s", ticker)
+	var result = new(Quotes)
+	if _, err := os.Stat(file); err == nil {
+		// file exists, check it
+		err = Load(file, result)
+		Check(err)
+		if closePrice, ok := result.ClosePrices[date]; ok {
+			if change, ok := result.Changes[date]; ok {
+				return closePrice, change
+			}
+		}
+	}
+	if result.Changes == nil {
+		result.Changes = make(map[time.Time]float64)
+	}
+	if result.ClosePrices == nil {
+		result.ClosePrices = make(map[time.Time]float64)
+	}
+
 	day := time.Duration(time.Hour * 24)
 	enddate := date.Add(day)
 	start := datetime.New(&date)
@@ -144,9 +171,17 @@ func quoteForDate(ticker string, date time.Time) (closePrice float64, change flo
 	for iter.Next() {
 		b := iter.Bar()
 		diff := b.Close.Sub(b.Open)
+		if b.Open.Sign() == 0 {
+			return 0.0, 0.0
+		}
 		chg := diff.Div(b.Open)
 		change, _ := chg.Float64()
 		closePrice, _ := b.Close.Float64()
+		result.Ticker = ticker
+		result.Changes[date] = change
+		result.ClosePrices[date] = closePrice
+		err := Save(file, result)
+		Check(err)
 		return closePrice, change
 	}
 	return 0.0, 0.0
@@ -154,12 +189,27 @@ func quoteForDate(ticker string, date time.Time) (closePrice float64, change flo
 
 func earnings(c *cli.Context) error {
 	stocks := fetchEarnings(time.Now(), sp500)
-	fmt.Print(stocks)
+	fmt.Print(stocks.Stocks)
 	return nil
 }
 
-func fetchEarnings(date time.Time, index []string) []string {
+type EarningDate struct {
+	Date   time.Time
+	Stocks []string
+}
+
+func fetchEarnings(date time.Time, index []string) EarningDate {
 	url := fmt.Sprintf("https://www.bloomberg.com/markets/api/calendar/earnings/US?locale=en&date=%s", date.Format("2006-01-02"))
+	file := fmt.Sprintf("earningdate/%s", date.Format("2006-01-02"))
+
+	var result = new(EarningDate)
+	if _, err := os.Stat(file); err == nil {
+		// file exists
+		err = Load(file, result)
+		Check(err)
+		return *result
+	}
+	fmt.Printf("did not find earningdate %s, fetching...\n", date.Format("2006-01-02"))
 	client := &http.Client{}
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
@@ -179,7 +229,11 @@ func fetchEarnings(date time.Time, index []string) []string {
 		panic(err)
 	}
 	stocks := filterEarnings(string(body), index)
-	return stocks
+	result.Date = date
+	result.Stocks = stocks
+	err = Save(file, result)
+	Check(err)
+	return *result
 }
 
 func filterEarnings(body string, index []string) []string {
@@ -202,4 +256,34 @@ func isInArray(s string, list []string) bool {
 		}
 	}
 	return false
+}
+
+// Encode via Gob to file
+func Save(path string, object interface{}) error {
+	file, err := os.Create(path)
+	if err == nil {
+		encoder := gob.NewEncoder(file)
+		encoder.Encode(object)
+	}
+	file.Close()
+	return err
+}
+
+// Decode Gob file
+func Load(path string, object interface{}) error {
+	file, err := os.Open(path)
+	if err == nil {
+		decoder := gob.NewDecoder(file)
+		err = decoder.Decode(object)
+	}
+	file.Close()
+	return err
+}
+
+func Check(e error) {
+	if e != nil {
+		_, file, line, _ := runtime.Caller(1)
+		fmt.Println(line, "\t", file, "\n", e)
+		os.Exit(1)
+	}
 }
