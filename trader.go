@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"os"
 	"regexp"
-	"strings"
 	"time"
 
 	"github.com/piquette/finance-go/chart"
@@ -34,6 +33,12 @@ func main() {
 			Aliases: []string{"s"},
 			Usage:   "simulate the strategy",
 			Action:  simulate,
+		},
+		{
+			Name:    "earnings",
+			Aliases: []string{"e"},
+			Usage:   "check earnings releases",
+			Action:  earnings,
 		},
 	}
 
@@ -147,65 +152,54 @@ func quoteForDate(ticker string, date time.Time) (closePrice float64, change flo
 	return 0.0, 0.0
 }
 
+func earnings(c *cli.Context) error {
+	stocks := fetchEarnings(time.Now(), sp500)
+	fmt.Print(stocks)
+	return nil
+}
+
 func fetchEarnings(date time.Time, index []string) []string {
-	url := "http://www.morningstar.com/earnings/Handler/GetEarningsCalendar.ashx"
-	yesterday := date.Add(time.Hour * -24)
-	todayUrl := fmt.Sprintf("%s?rptDate=%s", url, date.Format("2006-01-02"))
-	yesterdayUrl := fmt.Sprintf("%s?rptDate=%s", url, yesterday.Format("2006-01-02"))
-
-	respToday, err := http.Get(todayUrl)
-	if err != nil {
-		panic(err)
-	}
-	defer respToday.Body.Close()
-	respYesterday, err := http.Get(yesterdayUrl)
-	if err != nil {
-		panic(err)
-	}
-	defer respYesterday.Body.Close()
-
-	bodyToday, err := ioutil.ReadAll(respToday.Body)
-	if err != nil {
-		panic(err)
-	}
-	bodyYesterday, err := ioutil.ReadAll(respYesterday.Body)
+	url := fmt.Sprintf("https://www.bloomberg.com/markets/api/calendar/earnings/US?locale=en&date=%s", date.Format("2006-01-02"))
+	client := &http.Client{}
+	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		panic(err)
 	}
 
-	stocks := filterEarnings(string(bodyYesterday), "amc", index)
-	stocks = append(stocks, filterEarnings(string(bodyToday), "bmo", index)...)
+	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/66.0.3359.181 Safari/537.36")
+
+	resp, err := client.Do(req)
+	if err != nil {
+		panic(err)
+	}
+	defer resp.Body.Close()
+
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		panic(err)
+	}
+	stocks := filterEarnings(string(body), index)
 	return stocks
 }
 
-func filterEarnings(body, qualifier string, index []string) []string {
-	if qualifier != "amc" && qualifier != "bmo" {
-		panic("filterEarnings: qualifier must be 'amc' or 'bmo'")
-	}
-	sections := strings.Split(body, "<tr>")
-	tickers := []string{}
-	for _, section := range sections {
-		re := regexp.MustCompile("ticker=([^\"]+)")
-		matches := re.FindStringSubmatch(section)
-		if matches != nil {
-			if qualifier == "amc" {
-				if strings.Contains(section, "After Market Close") {
-					tickers = append(tickers, matches[1])
-				}
-			} else {
-				if strings.Contains(section, "Before Open") {
-					tickers = append(tickers, matches[1])
-				}
-			}
-		}
-	}
+func filterEarnings(body string, index []string) []string {
+	re := regexp.MustCompile(`/companies/security/(\w{1,4}):US`)
+	matches := re.FindAllStringSubmatch(body, -1)
 	winners := []string{}
-	for _, ticker := range tickers {
-		for _, i := range index {
-			if i == ticker {
-				winners = append(winners, ticker)
-			}
+	for _, match := range matches {
+		ticker := match[1]
+		if isInArray(ticker, index) {
+			winners = append(winners, ticker)
 		}
 	}
 	return winners
+}
+
+func isInArray(s string, list []string) bool {
+	for _, str := range list {
+		if s == str {
+			return true
+		}
+	}
+	return false
 }
