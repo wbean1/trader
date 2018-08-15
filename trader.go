@@ -52,44 +52,64 @@ func main() {
 
 type Strategy struct {
 	Name         string
-	Duration     time.Duration
+	StartDate    time.Time
 	Index        []string
 	ThresholdPct float64
 	StartCash    float64
 	Increment    float64
 }
 
+var now = time.Now()
+
+var start = time.Date(now.Year()-5, now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
+
 var strategies = []Strategy{
 	{
-		Name:         "5yr, russell2k, 5% thresh, 1k increment, 20k start",
-		Duration:     time.Duration(time.Hour * 24 * 365 * 5),
+		Name:         "5yr, russell2k, 4% thresh, 2.5k increment, 20k start",
+		StartDate:    start,
+		Index:        russell2k,
+		ThresholdPct: 0.04,
+		StartCash:    20000,
+		Increment:    2500,
+	},
+	{
+		Name:         "5yr, russell2k, 5% thresh, 2k increment, 20k start",
+		StartDate:    start,
 		Index:        russell2k,
 		ThresholdPct: 0.05,
 		StartCash:    20000,
-		Increment:    1000,
+		Increment:    2000,
 	},
 	{
 		Name:         "5yr, russell2k, 5% thresh, 2.5k increment, 20k start",
-		Duration:     time.Duration(time.Hour * 24 * 365 * 5),
+		StartDate:    start,
 		Index:        russell2k,
 		ThresholdPct: 0.05,
 		StartCash:    20000,
 		Increment:    2500,
 	},
 	{
-		Name:         "5yr, russell2k, 5% thresh, 5k increment, 20k start",
-		Duration:     time.Duration(time.Hour * 24 * 365 * 5),
+		Name:         "5yr, russell2k, 5% thresh, 3k increment, 20k start",
+		StartDate:    start,
 		Index:        russell2k,
 		ThresholdPct: 0.05,
 		StartCash:    20000,
-		Increment:    5000,
+		Increment:    3000,
+	},
+	{
+		Name:         "5yr, russell2k, 6% thresh, 2.5k increment, 20k start",
+		StartDate:    start,
+		Index:        russell2k,
+		ThresholdPct: 0.06,
+		StartCash:    20000,
+		Increment:    2500,
 	},
 }
 
 func simulate(c *cli.Context) error {
 	fmt.Println("simulating strategies:")
 	for _, s := range strategies {
-		total := simulateStrat(s.Index, s.ThresholdPct, s.Increment, s.StartCash, time.Now().Add(-1*s.Duration))
+		total := simulateStrat(s.Index, s.ThresholdPct, s.Increment, s.StartCash, s.StartDate)
 		fmt.Printf("%s --> %f\n", s.Name, total)
 	}
 	return nil
