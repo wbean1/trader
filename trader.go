@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
+	"math"
 	"net/http"
 	"os"
 	"regexp"
@@ -52,93 +53,268 @@ func main() {
 
 type Strategy struct {
 	Name         string
-	StartDate    time.Time
+	NumYears     int
 	Index        []string
 	ThresholdPct float64
 	StartCash    float64
 	Increment    float64
+	IncrementPct float64
+	Total        float64
 }
-
-var now = time.Now()
-
-var start = time.Date(now.Year()-5, now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
 
 var strategies = []Strategy{
 	{
 		Name:         "5yr, russell2k, 4% thresh, 2.5k increment, 20k start",
-		StartDate:    start,
+		NumYears:     5,
 		Index:        russell2k,
 		ThresholdPct: 0.04,
 		StartCash:    20000,
 		Increment:    2500,
+		Total:        39776.551768,
 	},
 	{
 		Name:         "5yr, russell2k, 5% thresh, 2k increment, 20k start",
-		StartDate:    start,
+		NumYears:     5,
 		Index:        russell2k,
 		ThresholdPct: 0.05,
 		StartCash:    20000,
 		Increment:    2000,
+		Total:        57211.928909,
 	},
 	{
 		Name:         "5yr, russell2k, 5% thresh, 2.5k increment, 20k start",
-		StartDate:    start,
+		NumYears:     5,
 		Index:        russell2k,
 		ThresholdPct: 0.05,
 		StartCash:    20000,
 		Increment:    2500,
+		Total:        54113.466045,
 	},
 	{
 		Name:         "5yr, russell2k, 5% thresh, 3k increment, 20k start",
-		StartDate:    start,
+		NumYears:     5,
 		Index:        russell2k,
 		ThresholdPct: 0.05,
 		StartCash:    20000,
 		Increment:    3000,
+		Total:        60977.663999,
 	},
 	{
 		Name:         "5yr, russell2k, 6% thresh, 2.5k increment, 20k start",
-		StartDate:    start,
+		NumYears:     5,
 		Index:        russell2k,
 		ThresholdPct: 0.06,
 		StartCash:    20000,
 		Increment:    2500,
+		Total:        27360.660436,
+	},
+	{
+		Name:         "5yr, russell2k, 4.5% thresh, 3k increment, 20k start",
+		NumYears:     5,
+		Index:        russell2k,
+		ThresholdPct: 0.045,
+		StartCash:    20000,
+		Increment:    3000,
+		Total:        48166.254131,
+	},
+	{
+		Name:         "5yr, russell2k, 4.9% thresh, 3k increment, 20k start",
+		NumYears:     5,
+		Index:        russell2k,
+		ThresholdPct: 0.049,
+		StartCash:    20000,
+		Increment:    3000,
+		Total:        60977.663999,
+	},
+	{
+		Name:         "8yr, russell2k, 4.9% thresh, 3k increment, 20k start",
+		NumYears:     8,
+		Index:        russell2k,
+		ThresholdPct: 0.049,
+		StartCash:    20000,
+		Increment:    3000,
+		Total:        62360.337167,
+	},
+	{
+		Name:         "5yr, russell2k, 4.9% thresh, 3k/33% increment, 20k start",
+		NumYears:     5,
+		Index:        russell2k,
+		ThresholdPct: 0.049,
+		StartCash:    20000,
+		Increment:    3000,
+		IncrementPct: 0.33,
+	},
+	{
+		Name:         "8yr, russell2k, 4.9% thresh, 3k/33% increment, 20k start",
+		NumYears:     8,
+		Index:        russell2k,
+		ThresholdPct: 0.049,
+		StartCash:    20000,
+		Increment:    3000,
+		IncrementPct: 0.33,
+	},
+	{
+		Name:         "5yr, russell2k, 5.5% thresh, 3k increment, 20k start",
+		NumYears:     5,
+		Index:        russell2k,
+		ThresholdPct: 0.055,
+		StartCash:    20000,
+		Increment:    3000,
+		Total:        46528.630025,
+	},
+	{
+		Name:         "5yr, russell2k, 5% thresh, 4k increment, 20k start",
+		NumYears:     5,
+		Index:        russell2k,
+		ThresholdPct: 0.05,
+		StartCash:    20000,
+		Increment:    4000,
+		Total:        35105.620685,
+	},
+	{
+		Name:         "5yr, russell2k, 5% thresh, 5k increment, 20k start",
+		NumYears:     5,
+		Index:        russell2k,
+		ThresholdPct: 0.05,
+		StartCash:    20000,
+		Increment:    5000,
+		Total:        28440.540269,
+	},
+	{
+		Name:         "12yr, russell2k, 5% thresh, 3k increment, 20k start",
+		NumYears:     12,
+		Index:        russell2k,
+		ThresholdPct: 0.05,
+		StartCash:    20000,
+		Increment:    3000,
+		Total:        612393.755073,
+	},
+	{
+		Name:         "12yr, russell2k, 4.9% thresh, 3k increment, 20k start",
+		NumYears:     12,
+		Index:        russell2k,
+		ThresholdPct: 0.049,
+		StartCash:    20000,
+		Increment:    3000,
+		Total:        652333.264589,
+	},
+	{
+		Name:         "12yr, russell2k, 4.9% thresh, 3k/33% increment, 20k start",
+		NumYears:     12,
+		Index:        russell2k,
+		ThresholdPct: 0.049,
+		StartCash:    20000,
+		Increment:    3000,
+		IncrementPct: 0.33,
+	},
+	{
+		Name:         "12yr, russell2k, 4.9% thresh, 3k/25% increment, 20k start",
+		NumYears:     12,
+		Index:        russell2k,
+		ThresholdPct: 0.049,
+		StartCash:    20000,
+		Increment:    3000,
+		IncrementPct: 0.25,
+	},
+	{
+		Name:         "12yr, russell2k, 4.9% thresh, 3k/50% increment, 20k start",
+		NumYears:     12,
+		Index:        russell2k,
+		ThresholdPct: 0.049,
+		StartCash:    20000,
+		Increment:    3000,
+		IncrementPct: 0.50,
+	},
+	{
+		Name:         "12yr, russell2k, 5.1% thresh, 3k increment, 20k start",
+		NumYears:     12,
+		Index:        russell2k,
+		ThresholdPct: 0.051,
+		StartCash:    20000,
+		Increment:    3000,
+		Total:        582053.615363,
+	},
+	{
+		Name:         "12yr, russell2k, 4.8% thresh, 3k increment, 20k start",
+		NumYears:     12,
+		Index:        russell2k,
+		ThresholdPct: 0.048,
+		StartCash:    20000,
+		Increment:    3000,
+		Total:        599767.375191,
+	},
+	{
+		Name:         "12yr, russell2k, 4.7% thresh, 3k increment, 20k start",
+		NumYears:     12,
+		Index:        russell2k,
+		ThresholdPct: 0.047,
+		StartCash:    20000,
+		Increment:    3000,
+		Total:        623400.781010,
+	},
+	{
+		Name:         "12yr, russell2k, 4.75% thresh, 3k increment, 20k start",
+		NumYears:     12,
+		Index:        russell2k,
+		ThresholdPct: 0.0475,
+		StartCash:    20000,
+		Increment:    3000,
+		Total:        605935.095303,
+	},
+	{
+		Name:         "12yr, russell2k, 4.6% thresh, 3k increment, 20k start",
+		NumYears:     12,
+		Index:        russell2k,
+		ThresholdPct: 0.046,
+		StartCash:    20000,
+		Increment:    3000,
+		Total:        565218.310733,
 	},
 }
+
+var doneStrats = make(chan Strategy)
 
 func simulate(c *cli.Context) error {
 	fmt.Println("simulating strategies:")
 	for _, s := range strategies {
-		total := simulateStrat(s.Index, s.ThresholdPct, s.Increment, s.StartCash, s.StartDate)
-		fmt.Printf("%s --> %f\n", s.Name, total)
+		go simulateStrat(s)
+	}
+	for i := 0; i < len(strategies); i++ {
+		x := <-doneStrats
+		fmt.Printf("%s --> %f  (%f%)\n", x.Name, x.Total, (math.Pow((x.Total/x.StartCash), (1.0/float64(x.NumYears)))-1)*100)
 	}
 	return nil
 }
 
-func simulateStrat(index []string, percent, increment, startAmount float64, startDate time.Time) float64 {
-	day := time.Duration(time.Hour * 24)
-	amountHave := startAmount
-	portfolio := make(map[string]int)
-	for i := startDate; time.Now().Sub(i) > 0; i = i.Add(day) {
-		stocks := fetchEarnings(i, index)
-		for _, stock := range stocks.Stocks {
-			closePrice, change := quoteForDate(stock, i)
-			if change < (-1 * percent) { //buy low
-				if amountHave > increment {
-					amountToBuy := int(increment / closePrice)
-					amountHave -= (float64(amountToBuy) * closePrice)
-					portfolio[stock] += amountToBuy
+func simulateStrat(s Strategy) {
+	if s.Total == 0 {
+		var now = time.Now()
+		var start = time.Date(now.Year()-s.NumYears, now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
+		day := time.Duration(time.Hour * 24)
+		amountHave := s.StartCash
+		portfolio := make(map[string]int)
+		for i := start; time.Now().Sub(i) > 0; i = i.Add(day) {
+			stocks := fetchEarnings(i, s.Index)
+			for _, stock := range stocks.Stocks {
+				closePrice, change := quoteForDate(stock, i)
+				if change < (-1 * s.ThresholdPct) { //buy low
+					if amountHave > s.Increment {
+						amountToBuy := int(math.Max(s.Increment/closePrice, (s.IncrementPct*amountHave)/closePrice))
+						amountHave -= (float64(amountToBuy) * closePrice)
+						portfolio[stock] += amountToBuy
+					}
 				}
-			}
-			if change > percent { //sell high
-				if portfolio[stock] > 0 {
-					amountHave += float64(portfolio[stock]) * closePrice
-					portfolio[stock] = 0
+				if change > s.ThresholdPct { //sell high
+					if portfolio[stock] > 0 {
+						amountHave += float64(portfolio[stock]) * closePrice
+						portfolio[stock] = 0
+					}
 				}
 			}
 		}
+		s.Total = calculateTotal(amountHave, portfolio)
 	}
-	return calculateTotal(amountHave, portfolio)
+	doneStrats <- s
 }
 
 func calculateTotal(cash float64, portfolio map[string]int) float64 {
@@ -163,7 +339,7 @@ func quoteForDate(ticker string, date time.Time) (closePrice float64, change flo
 	if _, err := os.Stat(file); err == nil {
 		// file exists, check it
 		err = Load(file, result)
-		Check(err)
+		Check(err, file)
 		if closePrice, ok := result.ClosePrices[date]; ok {
 			if change, ok := result.Changes[date]; ok {
 				return closePrice, change
@@ -201,7 +377,7 @@ func quoteForDate(ticker string, date time.Time) (closePrice float64, change flo
 		result.Changes[date] = change
 		result.ClosePrices[date] = closePrice
 		err := Save(file, result)
-		Check(err)
+		Check(err, file)
 		return closePrice, change
 	}
 	return 0.0, 0.0
@@ -226,10 +402,9 @@ func fetchEarnings(date time.Time, index []string) EarningDate {
 	if _, err := os.Stat(file); err == nil {
 		// file exists
 		err = Load(file, result)
-		Check(err)
+		Check(err, file)
 		return *result
 	}
-	fmt.Printf("did not find earningdate %s, fetching...\n", date.Format("2006-01-02"))
 	client := &http.Client{}
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
@@ -252,7 +427,7 @@ func fetchEarnings(date time.Time, index []string) EarningDate {
 	result.Date = date
 	result.Stocks = stocks
 	err = Save(file, result)
-	Check(err)
+	Check(err, file)
 	return *result
 }
 
@@ -300,10 +475,10 @@ func Load(path string, object interface{}) error {
 	return err
 }
 
-func Check(e error) {
+func Check(e error, f string) {
 	if e != nil {
 		_, file, line, _ := runtime.Caller(1)
-		fmt.Println(line, "\t", file, "\n", e)
+		fmt.Println(line, "\t", file, "\n", f, "\n", e)
 		os.Exit(1)
 	}
 }
